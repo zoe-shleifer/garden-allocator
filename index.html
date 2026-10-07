@@ -1,0 +1,1034 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Allotment</title>
+<style>
+  :root {
+    --ink: #241c14;
+    --paper: #f3eee4;
+    --gold: #e6c36a;
+    --soil: #6d4b36;
+    --danger: #c44b38;
+    --leaf: #2f6a3c;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; min-height: 100%; background: #172016; color: var(--paper); }
+  body { font-family: "Iowan Old Style", Palatino, "Palatino Linotype", Georgia, serif; }
+  button, .sans, a.ui { font-family: system-ui, sans-serif; }
+  #app {
+    max-width: 1040px;
+    margin: 0 auto;
+    padding: 22px 20px 32px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  header {
+    display: grid;
+    grid-template-columns: 140px 1fr auto;
+    gap: 18px;
+    align-items: end;
+  }
+  .kicker {
+    font-family: system-ui, sans-serif;
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    opacity: 0.72;
+  }
+  #size {
+    font-size: 76px;
+    line-height: 0.8;
+    letter-spacing: -0.045em;
+    margin-top: 4px;
+  }
+  #timer {
+    height: 14px;
+    background: #455246;
+    border-radius: 99px;
+    overflow: hidden;
+    box-shadow: inset 0 0 0 1px rgba(243, 238, 228, 0.28);
+  }
+  #timer[hidden] { display: none; }
+  #timer-fill {
+    height: 100%;
+    width: 100%;
+    background: var(--gold);
+    transform-origin: left center;
+    transform: scaleX(1);
+  }
+  #unit-label { margin-top: 8px; }
+  #unit-label[hidden], #unit[hidden] { display: none; }
+  #unit {
+    width: 28px;
+    height: 28px;
+    margin-top: 8px;
+    background: #c4a574;
+    border-radius: 3px;
+    box-shadow: inset 0 0 0 1px rgba(255, 248, 230, 0.45);
+  }
+  #meta { text-align: right; line-height: 1.45; }
+  #meta strong { font-weight: 500; }
+  #board {
+    display: grid;
+    grid-template-columns: 1fr 320px;
+    gap: 14px;
+    align-items: start;
+  }
+  #stage {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 12 / 8;
+    border-radius: 18px;
+    overflow: hidden;
+    background: #121814;
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.35);
+    user-select: none;
+    touch-action: none;
+  }
+  #stage.shake { animation: shake 0.35s linear; }
+  @keyframes shake {
+    20% { transform: translateX(-5px); }
+    40% { transform: translateX(5px); }
+    60% { transform: translateX(-3px); }
+    80% { transform: translateX(2px); }
+  }
+  canvas { width: 100%; height: 100%; display: block; touch-action: none; }
+  #toast {
+    position: absolute;
+    left: 50%;
+    bottom: 16px;
+    transform: translateX(-50%);
+    background: rgba(36, 28, 20, 0.9);
+    color: var(--paper);
+    padding: 8px 12px;
+    border-radius: 999px;
+    font-family: system-ui, sans-serif;
+    font-size: 14px;
+    pointer-events: none;
+  }
+  #toast[hidden] { display: none; }
+  .panel {
+    background: var(--paper);
+    color: var(--ink);
+    border-radius: 22px;
+    padding: 18px 18px 16px;
+  }
+  .panel h2 { font-weight: 500; letter-spacing: -0.03em; margin: 0 0 6px; font-size: 32px; }
+  .panel p { line-height: 1.45; margin: 0 0 12px; }
+  .shop-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    align-items: center;
+    border: 1px solid #e3d8c6;
+    border-radius: 14px;
+    padding: 10px 12px;
+    margin-bottom: 8px;
+  }
+  .shop-row span { display: block; color: #5e5346; font-family: system-ui, sans-serif; font-size: 13px; margin-top: 2px; }
+  #note { min-height: 1.3em; color: #8a3a2e; font-family: system-ui, sans-serif; font-size: 14px; }
+  button {
+    background: var(--paper);
+    color: var(--ink);
+    border: 0;
+    border-radius: 999px;
+    padding: 10px 16px;
+    font-size: 15px;
+    cursor: pointer;
+    box-shadow: inset 0 0 0 1px #e3d8c6;
+  }
+  button:disabled { opacity: 0.4; cursor: default; }
+  button.ghost { background: transparent; color: var(--paper); box-shadow: inset 0 0 0 1px rgba(243, 238, 228, 0.35); }
+  .panel button.ghost { color: var(--ink); box-shadow: inset 0 0 0 1px #e3d8c6; }
+  button.primary { background: var(--leaf); color: white; box-shadow: none; }
+  .panel .primary { width: 100%; margin-top: 4px; }
+  #playbar {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  #playbar[hidden], #shop[hidden], #placer[hidden] { display: none; }
+  #hint { margin: 0 8px; opacity: 0.75; font-family: system-ui, sans-serif; font-size: 14px; }
+  #version, .doc-link { margin-left: auto; font-family: system-ui, sans-serif; font-size: 14px; }
+  .doc-link { color: #5e5346; }
+  #version { opacity: 0.55; color: var(--paper); }
+  #playbar #version { margin-left: auto; }
+  .footer-row { display: flex; align-items: center; margin-top: 12px; }
+  @media (max-width: 800px) {
+    header { grid-template-columns: 1fr; }
+    #meta { text-align: left; }
+    #size { font-size: 64px; }
+    #board { grid-template-columns: 1fr; }
+    .shop-row { align-items: flex-start; flex-direction: column; }
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <div>
+      <div class="kicker">Allotment</div>
+      <div id="size">0</div>
+      <div class="kicker" id="size-label">coins</div>
+    </div>
+    <div>
+      <div id="timer" hidden aria-label="Time left"><div id="timer-fill"></div></div>
+      <div id="unit-label" class="kicker" hidden>One unit</div>
+      <div id="unit" hidden></div>
+    </div>
+    <div id="meta"></div>
+  </header>
+  <div id="board">
+  <div id="stage">
+    <canvas id="garden" width="960" height="640"></canvas>
+    <div id="toast" hidden></div>
+  </div>
+  <div id="side">
+  <section id="shop" class="panel">
+    <p class="kicker">Shop</p>
+    <h2>Buy, then plant until you miss.</h2>
+    <p>A round keeps going until the size is wrong or the timer runs out. Coins equal the size you plant. Click a plant to harvest it.</p>
+    <div class="shop-row">
+      <div>
+        <strong>Bigger brush</strong>
+        <span id="brush-detail"></span>
+      </div>
+      <button id="buy-brush" type="button">3 coins</button>
+    </div>
+    <div class="shop-row">
+      <div>
+        <strong>Hull</strong>
+        <span id="hull-detail"></span>
+      </div>
+      <button id="buy-hull" type="button">25 coins</button>
+    </div>
+    <div class="shop-row">
+      <div>
+        <strong>Dirt</strong>
+        <span id="dirt-detail"></span>
+      </div>
+      <button id="add-dirt" type="button">Add dirt</button>
+    </div>
+    <p id="note"></p>
+    <button id="start-round" class="primary" type="button">Start round</button>
+    <div class="footer-row">
+      <a class="doc-link" href="dev-ideas.html">Dev ideas</a>
+    </div>
+  </section>
+  <section id="placer" class="panel" hidden>
+    <p class="kicker">Dirt</p>
+    <h2>Place a formation.</h2>
+    <p>Drag across the dark ground. New squares have to touch the garden. The price is the next squares on the rising cost.</p>
+    <p id="dirt-cost" class="sans"></p>
+    <div style="display:flex; gap:8px; flex-wrap:wrap;">
+      <button id="confirm-dirt" class="primary" type="button" style="width:auto; flex:1;">Place</button>
+      <button id="clear-dirt" class="ghost" type="button">Clear</button>
+      <button id="cancel-dirt" class="ghost" type="button">Back</button>
+    </div>
+  </section>
+  <div id="playbar" hidden>
+    <button id="plant" type="button">Plant</button>
+    <button id="clear" class="ghost" type="button">Clear</button>
+    <p id="hint">Click to paint, click to stop. Click a plant to harvest.</p>
+    <span id="version">v0.3.0</span>
+  </div>
+  </div>
+  </div>
+</div>
+<script>
+const VERSION = "0.3.0";
+const COLS = 12;
+const ROWS = 8;
+const W = 960;
+const H = 640;
+const CELL_W = W / COLS;
+const CELL_H = H / ROWS;
+const CELL_AREA = CELL_W * CELL_H;
+const BRUSH_NAMES = ["1/8", "1/4", "1/2", "1"];
+const BRUSH_MAX = BRUSH_NAMES.length - 1;
+const START_W = 4;
+const START_H = 4;
+
+const CROPS = [
+  { name: "tomato", leaf: "#2f7a3e", fruit: "#e24b3a", bed: "#8a6248" },
+  { name: "kale", leaf: "#1f8a45", fruit: "#b6e36a", bed: "#6d8a46" },
+  { name: "sunflower", leaf: "#4f7a32", fruit: "#f2c14a", bed: "#a07840" },
+  { name: "wheat", leaf: "#d8c27a", fruit: "#f4e7b0", bed: "#b08a48" },
+  { name: "berry", leaf: "#2c6a48", fruit: "#c44b86", bed: "#7a5870" },
+];
+
+const view = document.getElementById("garden");
+const ctx = view.getContext("2d");
+const stage = document.getElementById("stage");
+const soil = document.createElement("canvas");
+soil.width = W;
+soil.height = H;
+const soilCtx = soil.getContext("2d");
+const mask = document.createElement("canvas");
+mask.width = W;
+mask.height = H;
+const maskCtx = mask.getContext("2d", { willReadFrequently: true });
+
+const sizeEl = document.getElementById("size");
+const sizeLabel = document.getElementById("size-label");
+const timerEl = document.getElementById("timer");
+const timerFill = document.getElementById("timer-fill");
+const unitLabel = document.getElementById("unit-label");
+const unitEl = document.getElementById("unit");
+const metaEl = document.getElementById("meta");
+const toastEl = document.getElementById("toast");
+const hintEl = document.getElementById("hint");
+const shopEl = document.getElementById("shop");
+const placerEl = document.getElementById("placer");
+const playbarEl = document.getElementById("playbar");
+const noteEl = document.getElementById("note");
+const brushDetail = document.getElementById("brush-detail");
+const buyBrushBtn = document.getElementById("buy-brush");
+const buyHullBtn = document.getElementById("buy-hull");
+const hullDetail = document.getElementById("hull-detail");
+const HULL_COST = 25;
+const COVER = 0.8;
+const addDirtBtn = document.getElementById("add-dirt");
+const startBtn = document.getElementById("start-round");
+const confirmBtn = document.getElementById("confirm-dirt");
+const dirtCostEl = document.getElementById("dirt-cost");
+const versionEl = document.getElementById("version");
+
+versionEl.textContent = "v" + VERSION;
+
+const state = {
+  mode: "shop",
+  round: 0,
+  plantedThisRound: 0,
+  coins: 0,
+  brushLevel: 0,
+  hull: false,
+  dirtBought: 0,
+  dirt: new Uint8Array(COLS * ROWS),
+  cells: new Array(COLS * ROWS).fill(0),
+  plots: [],
+  nextId: 1,
+  request: null,
+  flash: null,
+  toast: 0,
+  note: "",
+  selection: new Set(),
+  best: Number(localStorage.getItem("allotment-best") || 0),
+};
+
+let paintedPixels = 0;
+let painting = false;
+let strokePhase = "idle";
+let lastPoint = null;
+let pointer = null;
+let placeAdding = true;
+
+function buildSoil() {
+  soilCtx.fillStyle = "#6d4b36";
+  soilCtx.fillRect(0, 0, W, H);
+  for (let i = 0; i < 1600; i++) {
+    soilCtx.fillStyle = i % 2 ? "rgba(92, 58, 38, 0.35)" : "rgba(168, 116, 74, 0.2)";
+    const x = Math.random() * W;
+    const y = Math.random() * H;
+    const rx = 2 + Math.random() * 16;
+    soilCtx.beginPath();
+    soilCtx.ellipse(x, y, rx, rx * (0.45 + Math.random() * 0.4), Math.random() * 3, 0, Math.PI * 2);
+    soilCtx.fill();
+  }
+  const shade = soilCtx.createRadialGradient(W / 2, H / 2, W * 0.15, W / 2, H / 2, W * 0.72);
+  shade.addColorStop(0, "rgba(0,0,0,0)");
+  shade.addColorStop(1, "rgba(42, 24, 14, 0.38)");
+  soilCtx.fillStyle = shade;
+  soilCtx.fillRect(0, 0, W, H);
+}
+
+function initGarden() {
+  state.dirt.fill(0);
+  state.cells.fill(0);
+  const c0 = ((COLS - START_W) / 2) | 0;
+  const r0 = ((ROWS - START_H) / 2) | 0;
+  for (let r = 0; r < START_H; r++) {
+    for (let c = 0; c < START_W; c++) state.dirt[(r0 + r) * COLS + (c0 + c)] = 1;
+  }
+}
+
+function neighbors(i) {
+  const x = i % COLS;
+  const y = (i / COLS) | 0;
+  const out = [];
+  if (x > 0) out.push(i - 1);
+  if (x < COLS - 1) out.push(i + 1);
+  if (y > 0) out.push(i - COLS);
+  if (y < ROWS - 1) out.push(i + COLS);
+  return out;
+}
+
+function cellAt(x, y) {
+  const c = (x / CELL_W) | 0;
+  const r = (y / CELL_H) | 0;
+  if (c < 0 || r < 0 || c >= COLS || r >= ROWS) return -1;
+  return r * COLS + c;
+}
+
+function largestFreeComponent() {
+  const seen = new Uint8Array(COLS * ROWS);
+  let best = 0;
+  for (let i = 0; i < state.cells.length; i++) {
+    if (seen[i] || !state.dirt[i] || state.cells[i]) continue;
+    let n = 0;
+    const stack = [i];
+    seen[i] = 1;
+    while (stack.length) {
+      const cur = stack.pop();
+      n++;
+      for (const nb of neighbors(cur)) {
+        if (seen[nb] || !state.dirt[nb] || state.cells[nb]) continue;
+        seen[nb] = 1;
+        stack.push(nb);
+      }
+    }
+    if (n > best) best = n;
+  }
+  return best;
+}
+
+function openDirtCount() {
+  let n = 0;
+  for (let i = 0; i < state.dirt.length; i++) if (!state.dirt[i]) n++;
+  return n;
+}
+
+function brushSide() {
+  return (CELL_W / 8) * 2 ** state.brushLevel;
+}
+
+function brushCost() {
+  if (state.brushLevel >= BRUSH_MAX) return null;
+  return 3 * 2 ** state.brushLevel;
+}
+
+function dirtQuote(n) {
+  const start = state.dirtBought + 1;
+  let sum = 0;
+  for (let i = 0; i < n; i++) sum += start + i;
+  return sum;
+}
+
+function selectionAttached() {
+  if (state.selection.size === 0) return false;
+  const reached = new Set();
+  const stack = [];
+  for (let i = 0; i < state.dirt.length; i++) if (state.dirt[i]) stack.push(i);
+  const seen = new Uint8Array(COLS * ROWS);
+  while (stack.length) {
+    const cur = stack.pop();
+    for (const nb of neighbors(cur)) {
+      if (seen[nb] || !state.selection.has(nb)) continue;
+      seen[nb] = 1;
+      reached.add(nb);
+      stack.push(nb);
+    }
+  }
+  return reached.size === state.selection.size;
+}
+
+function clearPaint() {
+  maskCtx.clearRect(0, 0, W, H);
+  paintedPixels = 0;
+  lastPoint = null;
+  strokePhase = "idle";
+}
+
+function stamp(x, y) {
+  const s = brushSide();
+  const x0 = Math.max(0, Math.floor(x - s / 2));
+  const y0 = Math.max(0, Math.floor(y - s / 2));
+  const x1 = Math.min(W - 1, Math.ceil(x + s / 2));
+  const y1 = Math.min(H - 1, Math.ceil(y + s / 2));
+  const bw = x1 - x0 + 1;
+  const bh = y1 - y0 + 1;
+  if (bw <= 0 || bh <= 0) return;
+  const img = maskCtx.getImageData(x0, y0, bw, bh);
+  const data = img.data;
+  for (let py = y0; py <= y1; py++) {
+    for (let px = x0; px <= x1; px++) {
+      const ci = ((py / CELL_H) | 0) * COLS + ((px / CELL_W) | 0);
+      if (!state.dirt[ci] || state.cells[ci]) continue;
+      const i = ((py - y0) * bw + (px - x0)) * 4;
+      if (data[i + 3] !== 0) continue;
+      data[i] = 255;
+      data[i + 1] = 220;
+      data[i + 2] = 120;
+      data[i + 3] = 235;
+      paintedPixels++;
+    }
+  }
+  maskCtx.putImageData(img, x0, y0);
+}
+
+function strokeTo(x, y) {
+  if (!lastPoint) {
+    stamp(x, y);
+  } else {
+    const dist = Math.hypot(x - lastPoint.x, y - lastPoint.y);
+    const step = Math.max(2, brushSide() * 0.45);
+    const n = Math.max(1, Math.ceil(dist / step));
+    for (let i = 1; i <= n; i++) {
+      const t = i / n;
+      stamp(lastPoint.x + (x - lastPoint.x) * t, lastPoint.y + (y - lastPoint.y) * t);
+    }
+  }
+  lastPoint = { x, y };
+}
+
+function scan() {
+  const data = maskCtx.getImageData(0, 0, W, H).data;
+  const counts = new Float64Array(COLS * ROWS);
+  let pixels = 0;
+  for (let p = 0; p < W * H; p++) {
+    if (data[p * 4 + 3] === 0) continue;
+    const x = p % W;
+    const y = (p / W) | 0;
+    const ci = ((y / CELL_H) | 0) * COLS + ((x / CELL_W) | 0);
+    if (!state.dirt[ci] || state.cells[ci]) continue;
+    counts[ci]++;
+    pixels++;
+  }
+  paintedPixels = pixels;
+  const units = pixels / CELL_AREA;
+  return { pixels, units, rounded: Math.round(units), counts };
+}
+
+function qualifyingCells(counts) {
+  const cells = [];
+  for (let i = 0; i < counts.length; i++) {
+    if (state.dirt[i] && !state.cells[i] && counts[i] / CELL_AREA >= COVER) cells.push(i);
+  }
+  return cells;
+}
+
+function isConnected(cells) {
+  if (cells.length === 0) return false;
+  const set = new Set(cells);
+  const stack = [cells[0]];
+  const seen = new Set(stack);
+  while (stack.length) {
+    const cur = stack.pop();
+    for (const nb of neighbors(cur)) {
+      if (!set.has(nb) || seen.has(nb)) continue;
+      seen.add(nb);
+      stack.push(nb);
+    }
+  }
+  return seen.size === cells.length;
+}
+
+function applyHull() {
+  if (!state.hull) return;
+  const img = maskCtx.getImageData(0, 0, W, H);
+  const data = img.data;
+  const seen = new Uint8Array(W * H);
+  const stack = [];
+  function push(p) {
+    if (p < 0 || p >= W * H || seen[p] || data[p * 4 + 3] !== 0) return;
+    seen[p] = 1;
+    stack.push(p);
+  }
+  for (let x = 0; x < W; x++) {
+    push(x);
+    push((H - 1) * W + x);
+  }
+  for (let y = 0; y < H; y++) {
+    push(y * W);
+    push(y * W + (W - 1));
+  }
+  while (stack.length) {
+    const p = stack.pop();
+    const x = p % W;
+    if (x > 0) push(p - 1);
+    if (x < W - 1) push(p + 1);
+    if (p >= W) push(p - W);
+    if (p < W * (H - 1)) push(p + W);
+  }
+  for (let p = 0; p < W * H; p++) {
+    if (seen[p] || data[p * 4 + 3] !== 0) continue;
+    const x = p % W;
+    const y = (p / W) | 0;
+    const ci = ((y / CELL_H) | 0) * COLS + ((x / CELL_W) | 0);
+    if (!state.dirt[ci] || state.cells[ci]) continue;
+    const i = p * 4;
+    data[i] = 255;
+    data[i + 1] = 220;
+    data[i + 2] = 120;
+    data[i + 3] = 235;
+  }
+  maskCtx.putImageData(img, 0, 0);
+}
+
+function finishStroke() {
+  if (strokePhase !== "drawing") return;
+  strokePhase = "done";
+  lastPoint = null;
+  applyHull();
+}
+
+function rollSize(room) {
+  const n = state.plantedThisRound;
+  const drift = n * 0.45;
+  const base = 1 + Math.floor(Math.random() * 3);
+  const wobble = Math.round((Math.random() - 0.55) * (1 + n * 0.15));
+  return Math.max(1, Math.min(room, Math.round(base + drift + wobble)));
+}
+
+function requestTime() {
+  const drop = state.plantedThisRound * 350 + Math.max(0, state.round - 1) * 400;
+  return Math.max(14000, 18000 - drop);
+}
+
+function makeRequest() {
+  const room = largestFreeComponent();
+  if (room < 1) return null;
+  const total = requestTime();
+  return { size: rollSize(room), remaining: total, total };
+}
+
+function spawnRequest() {
+  const request = makeRequest();
+  if (!request) {
+    endRound("No room left.");
+    return;
+  }
+  state.request = request;
+}
+
+function cropLife() {
+  return 10000 + Math.random() * 20000;
+}
+
+function notify(text) {
+  toastEl.textContent = text;
+  toastEl.hidden = false;
+  state.toast = 1600;
+}
+
+function rememberBest() {
+  if (state.plantedThisRound > state.best) {
+    state.best = state.plantedThisRound;
+    localStorage.setItem("allotment-best", String(state.best));
+  }
+}
+
+function endRound(message) {
+  if (state.mode !== "play") return;
+  rememberBest();
+  state.mode = "shop";
+  state.request = null;
+  state.note = message;
+  clearPaint();
+  stage.classList.add("shake");
+}
+
+function tickCrops(dt) {
+  for (const plot of state.plots) {
+    if (plot.life > 0) plot.life = Math.max(0, plot.life - dt);
+  }
+}
+
+function plotAt(index) {
+  if (index < 0) return null;
+  const id = state.cells[index];
+  if (!id) return null;
+  for (const plot of state.plots) if (plot.id === id) return plot;
+  return null;
+}
+
+function harvest(plot) {
+  for (const ci of plot.cells) state.cells[ci] = 0;
+  const at = state.plots.indexOf(plot);
+  if (at >= 0) state.plots.splice(at, 1);
+}
+
+function startRound() {
+  if (state.mode !== "shop") return;
+  if (largestFreeComponent() < 1) {
+    state.note = "There's no open soil. Harvest a plant, or add dirt.";
+    return;
+  }
+  state.round += 1;
+  state.plantedThisRound = 0;
+  state.note = "";
+  state.mode = "play";
+  clearPaint();
+  spawnRequest();
+}
+
+function buyBrush() {
+  if (state.mode !== "shop") return;
+  const cost = brushCost();
+  if (cost === null || state.coins < cost) return;
+  state.coins -= cost;
+  state.brushLevel += 1;
+}
+
+function buyHull() {
+  if (state.mode !== "shop" || state.hull || state.coins < HULL_COST) return;
+  state.coins -= HULL_COST;
+  state.hull = true;
+}
+
+function beginPlacement() {
+  if (state.mode !== "shop" || openDirtCount() === 0) return;
+  state.selection.clear();
+  state.mode = "place";
+}
+
+function cancelPlacement() {
+  state.selection.clear();
+  state.mode = "shop";
+}
+
+function confirmPlacement() {
+  if (state.mode !== "place") return;
+  const n = state.selection.size;
+  if (n === 0 || !selectionAttached()) return;
+  const cost = dirtQuote(n);
+  if (state.coins < cost) return;
+  state.coins -= cost;
+  for (const i of state.selection) state.dirt[i] = 1;
+  state.dirtBought += n;
+  state.selection.clear();
+  state.mode = "shop";
+  state.note = "";
+}
+
+function editSelection(index, add) {
+  if (index < 0 || state.dirt[index]) return;
+  if (add) state.selection.add(index);
+  else state.selection.delete(index);
+}
+
+function submit() {
+  if (state.mode !== "play" || !state.request) return;
+  applyHull();
+  const measured = scan();
+  const chosen = qualifyingCells(measured.counts);
+  if (chosen.length === 0) {
+    if (measured.pixels > 0) endRound("Too small.");
+    return;
+  }
+  if (chosen.length !== state.request.size) {
+    endRound(chosen.length < state.request.size ? "Too small." : "Too big.");
+    return;
+  }
+  if (!isConnected(chosen)) {
+    clearPaint();
+    notify("A bed has to be one connected piece. Paint it again.");
+    return;
+  }
+  const id = state.nextId++;
+  const crop = CROPS[(id - 1) % CROPS.length];
+  const life = cropLife();
+  state.plots.push({ id, crop, life, max: life, cells: chosen });
+  for (const ci of chosen) state.cells[ci] = id;
+  state.flash = { cells: chosen, life: 520 };
+  clearPaint();
+  state.plantedThisRound += 1;
+  state.coins += state.request.size;
+  notify("+" + state.request.size + " coins");
+  spawnRequest();
+}
+
+function update(dt) {
+  if (state.toast > 0) {
+    state.toast -= dt;
+    if (state.toast <= 0) toastEl.hidden = true;
+  }
+  if (state.flash) {
+    state.flash.life -= dt;
+    if (state.flash.life <= 0) state.flash = null;
+  }
+  tickCrops(dt);
+  if (state.mode !== "play" || !state.request) return;
+  state.request.remaining -= dt;
+  if (state.request.remaining <= 0) endRound("Time ran out.");
+}
+
+function drawRegion(cells, color, width) {
+  const has = new Set(cells);
+  ctx.beginPath();
+  for (const ci of cells) {
+    const x = (ci % COLS) * CELL_W;
+    const y = ((ci / COLS) | 0) * CELL_H;
+    const col = ci % COLS;
+    const row = (ci / COLS) | 0;
+    if (col === 0 || !has.has(ci - 1)) {
+      ctx.moveTo(x, y);
+      ctx.lineTo(x, y + CELL_H);
+    }
+    if (col === COLS - 1 || !has.has(ci + 1)) {
+      ctx.moveTo(x + CELL_W, y);
+      ctx.lineTo(x + CELL_W, y + CELL_H);
+    }
+    if (row === 0 || !has.has(ci - COLS)) {
+      ctx.moveTo(x, y);
+      ctx.lineTo(x + CELL_W, y);
+    }
+    if (row === ROWS - 1 || !has.has(ci + COLS)) {
+      ctx.moveTo(x, y + CELL_H);
+      ctx.lineTo(x + CELL_W, y + CELL_H);
+    }
+  }
+  ctx.strokeStyle = color;
+  ctx.lineWidth = width;
+  ctx.stroke();
+}
+
+function drawPlot(plot) {
+  let sx = 0;
+  let sy = 0;
+  const ready = plot.life <= 0;
+  for (const ci of plot.cells) {
+    const x = (ci % COLS) * CELL_W;
+    const y = ((ci / COLS) | 0) * CELL_H;
+    ctx.fillStyle = ready ? "#2f7a45" : "#1b3324";
+    ctx.fillRect(x + 4, y + 4, CELL_W - 8, CELL_H - 8);
+    ctx.strokeStyle = ready ? "#b6f0c4" : "#3f9a56";
+    ctx.lineWidth = 3;
+    ctx.strokeRect(x + 4.5, y + 4.5, CELL_W - 9, CELL_H - 9);
+    sx += x + CELL_W / 2;
+    sy += y + CELL_H / 2;
+  }
+  const seconds = Math.ceil(plot.life / 1000);
+  ctx.fillStyle = "#8ee7a8";
+  ctx.font = "600 32px system-ui, sans-serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(String(seconds), sx / plot.cells.length, sy / plot.cells.length);
+}
+
+function draw() {
+  ctx.fillStyle = "#121814";
+  ctx.fillRect(0, 0, W, H);
+  for (let i = 0; i < state.dirt.length; i++) {
+    if (!state.dirt[i]) continue;
+    const x = (i % COLS) * CELL_W;
+    const y = ((i / COLS) | 0) * CELL_H;
+    ctx.drawImage(soil, x, y, CELL_W, CELL_H, x, y, CELL_W, CELL_H);
+  }
+  if (state.mode === "place") {
+    ctx.save();
+    ctx.strokeStyle = "rgba(243, 238, 228, 0.14)";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (let c = 1; c < COLS; c++) {
+      ctx.moveTo(c * CELL_W + 0.5, 0);
+      ctx.lineTo(c * CELL_W + 0.5, H);
+    }
+    for (let r = 1; r < ROWS; r++) {
+      ctx.moveTo(0, r * CELL_H + 0.5);
+      ctx.lineTo(W, r * CELL_H + 0.5);
+    }
+    ctx.stroke();
+    ctx.restore();
+    for (const i of state.selection) {
+      const x = (i % COLS) * CELL_W;
+      const y = ((i / COLS) | 0) * CELL_H;
+      ctx.fillStyle = "rgba(214, 176, 112, 0.9)";
+      ctx.fillRect(x + 3, y + 3, CELL_W - 6, CELL_H - 6);
+    }
+  }
+  for (const plot of state.plots) drawPlot(plot);
+  if (state.flash) drawRegion(state.flash.cells, "rgba(255, 250, 235, 0.95)", 4);
+  ctx.drawImage(mask, 0, 0);
+  const hoveringCrop = pointer && state.mode !== "place" && plotAt(cellAt(pointer.x, pointer.y));
+  if (pointer && state.mode === "play" && !hoveringCrop) {
+    const s = brushSide();
+    ctx.strokeStyle = "rgba(243, 238, 228, 0.9)";
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(pointer.x - s / 2, pointer.y - s / 2, s, s);
+  }
+}
+
+function renderHud() {
+  const playing = state.mode === "play" && state.request;
+  shopEl.hidden = state.mode !== "shop";
+  placerEl.hidden = state.mode !== "place";
+  playbarEl.hidden = state.mode !== "play";
+  timerEl.hidden = !playing;
+  unitLabel.hidden = !playing;
+  unitEl.hidden = !playing;
+  const hoveringCrop = pointer && state.mode !== "place" && plotAt(cellAt(pointer.x, pointer.y));
+  view.style.cursor = hoveringCrop ? "pointer" : state.mode === "play" ? "none" : "crosshair";
+
+  if (playing) {
+    sizeEl.textContent = String(state.request.size);
+    sizeLabel.textContent = "units";
+    const ratio = Math.max(0, state.request.remaining / state.request.total);
+    timerFill.style.transform = "scaleX(" + ratio + ")";
+    timerFill.style.background = ratio < 0.3 ? "#d4533c" : "#e6c36a";
+    const side = stage.clientWidth / COLS;
+    unitEl.style.width = side + "px";
+    unitEl.style.height = (stage.clientHeight / ROWS) + "px";
+  } else {
+    sizeEl.textContent = String(state.coins);
+    sizeLabel.textContent = "coins";
+  }
+
+  const nextBrush = brushCost();
+  const now = BRUSH_NAMES[state.brushLevel];
+  const nextName = state.brushLevel < BRUSH_MAX ? BRUSH_NAMES[state.brushLevel + 1] : null;
+  brushDetail.textContent = nextName
+    ? "Now " + now + " × " + now + " of a unit. Next is " + nextName + " × " + nextName + "."
+    : "The brush covers a full unit.";
+  buyBrushBtn.disabled = nextBrush === null || state.coins < nextBrush;
+  buyBrushBtn.textContent = nextBrush === null ? "Full size" : nextBrush + " coins";
+  hullDetail.textContent = state.hull
+    ? "Owned. An outline fills in the squares inside it."
+    : "Paint an outline. Squares inside it count as filled.";
+  buyHullBtn.disabled = state.hull || state.coins < HULL_COST;
+  buyHullBtn.textContent = state.hull ? "Owned" : HULL_COST + " coins";
+  const nextDirt = dirtQuote(1);
+  document.getElementById("dirt-detail").textContent =
+    "Next square costs " + nextDirt + " coin" + (nextDirt === 1 ? "" : "s") +
+    ". Place any shape that touches the garden. Each square costs one more.";
+  addDirtBtn.disabled = openDirtCount() === 0;
+  addDirtBtn.textContent = openDirtCount() === 0 ? "Garden full" : "Add dirt";
+  startBtn.disabled = largestFreeComponent() < 1;
+  noteEl.textContent = state.note;
+
+  const n = state.selection.size;
+  const attached = n > 0 && selectionAttached();
+  const cost = n > 0 ? dirtQuote(n) : 0;
+  const affordable = n > 0 && state.coins >= cost;
+  confirmBtn.disabled = !attached || !affordable;
+  if (n === 0) dirtCostEl.textContent = "No squares selected. The next square costs " + dirtQuote(1) + ".";
+  else if (!attached) dirtCostEl.textContent = n + " selected, but they have to touch the garden.";
+  else dirtCostEl.textContent = n + " square" + (n === 1 ? "" : "s") + " · " + cost + " coins" + (affordable ? "" : " — you have " + state.coins);
+
+  metaEl.innerHTML =
+    "<strong>" + (state.round ? "Round " + state.round : "Shop") + "</strong><br>" +
+    "Brush " + now + " × " + now + (state.hull ? " · Hull" : "") + "<br>" +
+    state.coins + " coins" +
+    (state.best ? "<br>Best " + state.best : "");
+  if (state.mode === "play") {
+    hintEl.textContent = strokePhase === "drawing"
+      ? "Click again to stop."
+      : strokePhase === "done"
+        ? "One stroke. Plant it, or clear it."
+        : "Click to paint, click to stop. Click a plant to harvest.";
+  }
+}
+
+function pointerPos(event) {
+  const rect = view.getBoundingClientRect();
+  return {
+    x: (event.clientX - rect.left) * (W / rect.width),
+    y: (event.clientY - rect.top) * (H / rect.height),
+  };
+}
+
+view.addEventListener("pointerdown", (event) => {
+  pointer = pointerPos(event);
+  if (event.button === 2) {
+    if (state.mode === "play") clearPaint();
+    if (state.mode === "place") editSelection(cellAt(pointer.x, pointer.y), false);
+    return;
+  }
+  if (event.button !== 0) return;
+  const under = plotAt(cellAt(pointer.x, pointer.y));
+  if (under && state.mode !== "place" && !(state.mode === "play" && strokePhase === "drawing")) {
+    harvest(under);
+    return;
+  }
+  if (state.mode === "play") {
+    if (strokePhase === "idle") {
+      strokePhase = "drawing";
+      lastPoint = null;
+      strokeTo(pointer.x, pointer.y);
+    } else if (strokePhase === "drawing") {
+      strokeTo(pointer.x, pointer.y);
+      finishStroke();
+    }
+    return;
+  }
+  if (state.mode === "place") {
+    view.setPointerCapture(event.pointerId);
+    painting = true;
+    const index = cellAt(pointer.x, pointer.y);
+    placeAdding = index < 0 || !state.selection.has(index);
+    editSelection(index, placeAdding);
+  }
+});
+
+window.addEventListener("pointermove", (event) => {
+  if (state.mode !== "play" || strokePhase !== "drawing") return;
+  pointer = pointerPos(event);
+  strokeTo(pointer.x, pointer.y);
+});
+
+view.addEventListener("pointermove", (event) => {
+  if (state.mode === "play" && strokePhase === "drawing") return;
+  pointer = pointerPos(event);
+  if (state.mode === "place" && painting) editSelection(cellAt(pointer.x, pointer.y), placeAdding);
+});
+
+view.addEventListener("pointerup", () => {
+  if (state.mode === "place") painting = false;
+});
+
+view.addEventListener("pointerleave", () => {
+  if (strokePhase !== "drawing" && !painting) pointer = null;
+});
+
+view.addEventListener("contextmenu", (event) => event.preventDefault());
+
+document.getElementById("plant").addEventListener("click", () => {
+  finishStroke();
+  submit();
+});
+document.getElementById("clear").addEventListener("click", clearPaint);
+buyBrushBtn.addEventListener("click", buyBrush);
+buyHullBtn.addEventListener("click", buyHull);
+addDirtBtn.addEventListener("click", beginPlacement);
+startBtn.addEventListener("click", startRound);
+confirmBtn.addEventListener("click", confirmPlacement);
+document.getElementById("clear-dirt").addEventListener("click", () => state.selection.clear());
+document.getElementById("cancel-dirt").addEventListener("click", cancelPlacement);
+
+window.addEventListener("keydown", (event) => {
+  if (event.key === "Enter" && !event.target.closest("a, button")) {
+    event.preventDefault();
+    if (state.mode === "shop") startRound();
+    else if (state.mode === "play") submit();
+    else if (state.mode === "place") confirmPlacement();
+  }
+  if (event.key === "Escape") {
+    if (state.mode === "play") clearPaint();
+    if (state.mode === "place") cancelPlacement();
+  }
+  if (event.key === "Backspace" && state.mode === "play") clearPaint();
+});
+
+stage.addEventListener("animationend", () => stage.classList.remove("shake"));
+
+let last = performance.now();
+function frame(now) {
+  const dt = Math.min(50, now - last);
+  last = now;
+  update(dt);
+  draw();
+  renderHud();
+  requestAnimationFrame(frame);
+}
+
+buildSoil();
+initGarden();
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
