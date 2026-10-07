@@ -27,11 +27,22 @@
     gap: 14px;
   }
   header {
-    display: grid;
-    grid-template-columns: 140px 1fr auto;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
     gap: 18px;
-    align-items: end;
   }
+  #score {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+  }
+  #coins {
+    font-size: 64px;
+    line-height: 0.8;
+    letter-spacing: -0.045em;
+  }
+  #start-round[hidden] { display: none; }
   .kicker {
     font-family: system-ui, sans-serif;
     font-size: 11px;
@@ -39,12 +50,20 @@
     text-transform: uppercase;
     opacity: 0.72;
   }
+  #garden-col { display: flex; flex-direction: column; gap: 12px; }
+  #request {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+  #request[hidden] { display: none; }
+  #request-side { flex: 1; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
   #size {
-    font-size: 76px;
+    font-size: 64px;
     line-height: 0.8;
     letter-spacing: -0.045em;
-    margin-top: 4px;
   }
+  #unit-row { display: flex; align-items: center; gap: 8px; }
   #timer {
     height: 14px;
     background: #455246;
@@ -60,12 +79,10 @@
     transform-origin: left center;
     transform: scaleX(1);
   }
-  #unit-label { margin-top: 8px; }
   #unit-label[hidden], #unit[hidden] { display: none; }
   #unit {
     width: 28px;
     height: 28px;
-    margin-top: 8px;
     background: #c4a574;
     border-radius: 3px;
     box-shadow: inset 0 0 0 1px rgba(255, 248, 230, 0.45);
@@ -146,6 +163,7 @@
   .panel button.ghost { color: var(--ink); box-shadow: inset 0 0 0 1px #e3d8c6; }
   button.primary { background: var(--leaf); color: white; box-shadow: none; }
   .panel .primary { width: 100%; margin-top: 4px; }
+  header .primary { width: auto; margin-top: 0; padding: 12px 18px; }
   #playbar {
     display: flex;
     gap: 8px;
@@ -160,9 +178,9 @@
   #playbar #version { margin-left: auto; }
   .footer-row { display: flex; align-items: center; margin-top: 12px; }
   @media (max-width: 800px) {
-    header { grid-template-columns: 1fr; }
+    header { align-items: flex-start; }
     #meta { text-align: left; }
-    #size { font-size: 64px; }
+    #score { flex-wrap: wrap; }
     #board { grid-template-columns: 1fr; }
     .shop-row { align-items: flex-start; flex-direction: column; }
   }
@@ -171,28 +189,35 @@
 <body>
 <div id="app">
   <header>
-    <div>
-      <div class="kicker">Allotment</div>
-      <div id="size">0</div>
-      <div class="kicker" id="size-label">coins</div>
-    </div>
-    <div>
-      <div id="timer" hidden aria-label="Time left"><div id="timer-fill"></div></div>
-      <div id="unit-label" class="kicker" hidden>One unit</div>
-      <div id="unit" hidden></div>
+    <div id="score">
+      <div>
+        <div id="coins">0</div>
+        <div class="kicker">coins</div>
+      </div>
+      <button id="start-round" class="primary" type="button">Start round</button>
     </div>
     <div id="meta"></div>
   </header>
   <div id="board">
+  <div id="garden-col">
   <div id="stage">
     <canvas id="garden" width="1280" height="640"></canvas>
     <div id="toast" hidden></div>
   </div>
+  <div id="request" hidden>
+    <div id="size">0</div>
+    <div id="request-side">
+      <div class="kicker" id="size-label">units</div>
+      <div id="timer" hidden aria-label="Time left"><div id="timer-fill"></div></div>
+      <div id="unit-row">
+        <div id="unit-label" class="kicker" hidden>One unit</div>
+        <div id="unit" hidden></div>
+      </div>
+    </div>
+  </div>
+  </div>
   <div id="side">
   <section id="shop" class="panel">
-    <p class="kicker">Shop</p>
-    <h2>Buy, then plant until you miss.</h2>
-    <p>A round keeps going until a bed is too small or the timer runs out. Paint at least the size asked. Harvest before the round ends. When it ends, the plants are gone.</p>
     <div class="shop-row">
       <div>
         <strong>Hull</strong>
@@ -208,7 +233,6 @@
       <button id="add-dirt" type="button">Add dirt</button>
     </div>
     <p id="note"></p>
-    <button id="start-round" class="primary" type="button">Start round</button>
     <div class="footer-row">
       <a class="doc-link" href="dev-ideas.html">Dev ideas</a>
     </div>
@@ -227,7 +251,7 @@
   <div id="playbar" hidden>
     <button id="plant" type="button">Plant</button>
     <button id="clear" class="ghost" type="button">Clear</button>
-    <p id="hint">Click to paint, click to stop. Extra squares stay planted. Click harvest when it is ready.</p>
+    <p id="hint">Hover a square to mark it. Extra squares stay planted. Click harvest when it is ready.</p>
     <span id="version">v0.4.0</span>
   </div>
   </div>
@@ -260,11 +284,8 @@ const soil = document.createElement("canvas");
 soil.width = W;
 soil.height = H;
 const soilCtx = soil.getContext("2d");
-const mask = document.createElement("canvas");
-mask.width = W;
-mask.height = H;
-const maskCtx = mask.getContext("2d", { willReadFrequently: true });
-
+const coinsEl = document.getElementById("coins");
+const requestEl = document.getElementById("request");
 const sizeEl = document.getElementById("size");
 const sizeLabel = document.getElementById("size-label");
 const timerEl = document.getElementById("timer");
@@ -281,7 +302,6 @@ const noteEl = document.getElementById("note");
 const buyHullBtn = document.getElementById("buy-hull");
 const hullDetail = document.getElementById("hull-detail");
 const HULL_COST = 25;
-const COVER = 0.8;
 const addDirtBtn = document.getElementById("add-dirt");
 const startBtn = document.getElementById("start-round");
 const confirmBtn = document.getElementById("confirm-dirt");
@@ -306,14 +326,13 @@ const state = {
   toast: 0,
   note: "",
   selection: new Set(),
+  marks: new Set(),
   best: Number(localStorage.getItem("allotment-best") || 0),
 };
 
-let paintedPixels = 0;
 let painting = false;
-let strokePhase = "idle";
-let lastPoint = null;
 let pointer = null;
+let lastMark = -1;
 let placeAdding = true;
 
 function buildSoil() {
@@ -391,10 +410,6 @@ function openDirtCount() {
   return n;
 }
 
-function brushSide() {
-  return CELL_W;
-}
-
 function dirtQuote(n) {
   const start = state.dirtBought + 1;
   let sum = 0;
@@ -420,79 +435,33 @@ function selectionAttached() {
   return reached.size === state.selection.size;
 }
 
-function clearPaint() {
-  maskCtx.clearRect(0, 0, W, H);
-  paintedPixels = 0;
-  lastPoint = null;
-  strokePhase = "idle";
+function clearMarks() {
+  state.marks.clear();
+  lastMark = -1;
 }
 
-function stamp(x, y) {
-  const s = brushSide();
-  const x0 = Math.max(0, Math.floor(x - s / 2));
-  const y0 = Math.max(0, Math.floor(y - s / 2));
-  const x1 = Math.min(W - 1, Math.ceil(x + s / 2));
-  const y1 = Math.min(H - 1, Math.ceil(y + s / 2));
-  const bw = x1 - x0 + 1;
-  const bh = y1 - y0 + 1;
-  if (bw <= 0 || bh <= 0) return;
-  const img = maskCtx.getImageData(x0, y0, bw, bh);
-  const data = img.data;
-  for (let py = y0; py <= y1; py++) {
-    for (let px = x0; px <= x1; px++) {
-      const ci = ((py / CELL_H) | 0) * COLS + ((px / CELL_W) | 0);
-      if (!state.dirt[ci] || state.cells[ci]) continue;
-      const i = ((py - y0) * bw + (px - x0)) * 4;
-      if (data[i + 3] !== 0) continue;
-      data[i] = 255;
-      data[i + 1] = 220;
-      data[i + 2] = 120;
-      data[i + 3] = 235;
-      paintedPixels++;
+function markCell(index) {
+  if (index < 0 || !state.dirt[index] || state.cells[index]) return;
+  state.marks.add(index);
+}
+
+function markHover(index) {
+  if (state.mode !== "play") return;
+  if (lastMark >= 0 && index >= 0 && index !== lastMark) {
+    const c0 = lastMark % COLS;
+    const r0 = (lastMark / COLS) | 0;
+    const c1 = index % COLS;
+    const r1 = (index / COLS) | 0;
+    const steps = Math.max(Math.abs(c1 - c0), Math.abs(r1 - r0));
+    for (let i = 1; i <= steps; i++) {
+      const c = Math.round(c0 + ((c1 - c0) * i) / steps);
+      const r = Math.round(r0 + ((r1 - r0) * i) / steps);
+      markCell(r * COLS + c);
     }
-  }
-  maskCtx.putImageData(img, x0, y0);
-}
-
-function strokeTo(x, y) {
-  if (!lastPoint) {
-    stamp(x, y);
   } else {
-    const dist = Math.hypot(x - lastPoint.x, y - lastPoint.y);
-    const step = Math.max(2, brushSide() * 0.45);
-    const n = Math.max(1, Math.ceil(dist / step));
-    for (let i = 1; i <= n; i++) {
-      const t = i / n;
-      stamp(lastPoint.x + (x - lastPoint.x) * t, lastPoint.y + (y - lastPoint.y) * t);
-    }
+    markCell(index);
   }
-  lastPoint = { x, y };
-}
-
-function scan() {
-  const data = maskCtx.getImageData(0, 0, W, H).data;
-  const counts = new Float64Array(COLS * ROWS);
-  let pixels = 0;
-  for (let p = 0; p < W * H; p++) {
-    if (data[p * 4 + 3] === 0) continue;
-    const x = p % W;
-    const y = (p / W) | 0;
-    const ci = ((y / CELL_H) | 0) * COLS + ((x / CELL_W) | 0);
-    if (!state.dirt[ci] || state.cells[ci]) continue;
-    counts[ci]++;
-    pixels++;
-  }
-  paintedPixels = pixels;
-  const units = pixels / CELL_AREA;
-  return { pixels, units, rounded: Math.round(units), counts };
-}
-
-function qualifyingCells(counts) {
-  const cells = [];
-  for (let i = 0; i < counts.length; i++) {
-    if (state.dirt[i] && !state.cells[i] && counts[i] / CELL_AREA >= COVER) cells.push(i);
-  }
-  return cells;
+  if (index >= 0) lastMark = index;
 }
 
 function isConnected(cells) {
@@ -511,75 +480,49 @@ function isConnected(cells) {
   return seen.size === cells.length;
 }
 
-function applyHull() {
-  if (!state.hull) return;
-  const img = maskCtx.getImageData(0, 0, W, H);
-  const data = img.data;
-  const seen = new Uint8Array(W * H);
-  const stack = [];
-  function push(p) {
-    if (p < 0 || p >= W * H || seen[p] || data[p * 4 + 3] !== 0) return;
-    seen[p] = 1;
-    stack.push(p);
+function markedCells() {
+  const chosen = new Set(state.marks);
+  if (state.hull && chosen.size > 0) {
+    const seen = new Uint8Array(COLS * ROWS);
+    const stack = [];
+    function push(i) {
+      if (i < 0 || i >= COLS * ROWS || seen[i] || chosen.has(i)) return;
+      seen[i] = 1;
+      stack.push(i);
+    }
+    for (let c = 0; c < COLS; c++) {
+      push(c);
+      push((ROWS - 1) * COLS + c);
+    }
+    for (let r = 0; r < ROWS; r++) {
+      push(r * COLS);
+      push(r * COLS + COLS - 1);
+    }
+    while (stack.length) {
+      const cur = stack.pop();
+      for (const nb of neighbors(cur)) push(nb);
+    }
+    for (let i = 0; i < COLS * ROWS; i++) {
+      if (!seen[i] && state.dirt[i] && !state.cells[i]) chosen.add(i);
+    }
   }
-  for (let x = 0; x < W; x++) {
-    push(x);
-    push((H - 1) * W + x);
-  }
-  for (let y = 0; y < H; y++) {
-    push(y * W);
-    push(y * W + (W - 1));
-  }
-  while (stack.length) {
-    const p = stack.pop();
-    const x = p % W;
-    if (x > 0) push(p - 1);
-    if (x < W - 1) push(p + 1);
-    if (p >= W) push(p - W);
-    if (p < W * (H - 1)) push(p + W);
-  }
-  for (let p = 0; p < W * H; p++) {
-    if (seen[p] || data[p * 4 + 3] !== 0) continue;
-    const x = p % W;
-    const y = (p / W) | 0;
-    const ci = ((y / CELL_H) | 0) * COLS + ((x / CELL_W) | 0);
-    if (!state.dirt[ci] || state.cells[ci]) continue;
-    const i = p * 4;
-    data[i] = 255;
-    data[i + 1] = 220;
-    data[i + 2] = 120;
-    data[i + 3] = 235;
-  }
-  maskCtx.putImageData(img, 0, 0);
+  return [...chosen];
 }
 
-function finishStroke() {
-  if (strokePhase !== "drawing") return;
-  strokePhase = "done";
-  lastPoint = null;
-  applyHull();
-}
-
-function rollSize(room) {
-  const n = state.plantedThisRound;
-  const drift = n * 0.45;
-  const base = 1 + Math.floor(Math.random() * 3);
-  const wobble = Math.round((Math.random() - 0.55) * (1 + n * 0.15));
-  let size = Math.max(1, Math.round(base + drift + wobble));
-  if (Math.random() < 0.34) size = Math.max(size, room + 1 + Math.floor(Math.random() * 3));
-  return size;
+function rollSize() {
+  return 1 + Math.floor(Math.random() * 10);
 }
 
 function requestTime() {
-  const drop = state.plantedThisRound * 350 + Math.max(0, state.round - 1) * 400;
-  return Math.max(14000, 18000 - drop);
+  const drop = state.plantedThisRound * 200 + Math.max(0, state.round - 1) * 250;
+  return Math.max(7000, 10000 - drop);
 }
 
 function makeRequest() {
   const room = largestFreeComponent();
   if (room < 1) return null;
   const total = requestTime();
-  return { size: rollSize(room), remaining: total, total };
+  return { size: rollSize(), remaining: total, total };
 }
 
 function spawnRequest() {
@@ -592,7 +535,7 @@ function spawnRequest() {
 }
 
 function cropLife() {
-  return 10000 + Math.random() * 20000;
+  return (1 + Math.random() * 9) * 1000;
 }
 
 function notify(text) {
@@ -617,7 +560,7 @@ function endRound(message) {
   state.plots = [];
   state.cells.fill(0);
   state.flash = null;
-  clearPaint();
+  clearMarks();
   stage.classList.add("shake");
 }
 
@@ -654,7 +597,7 @@ function startRound() {
   state.plantedThisRound = 0;
   state.note = "";
   state.mode = "play";
-  clearPaint();
+  clearMarks();
   spawnRequest();
 }
 
@@ -697,20 +640,15 @@ function editSelection(index, add) {
 
 function submit() {
   if (state.mode !== "play" || !state.request) return;
-  applyHull();
-  const measured = scan();
-  const chosen = qualifyingCells(measured.counts);
-  if (chosen.length === 0) {
-    if (measured.pixels > 0) endRound("Too small.");
-    return;
-  }
+  const chosen = markedCells();
+  if (chosen.length === 0) return;
   if (chosen.length < state.request.size) {
     endRound("Too small.");
     return;
   }
   if (!isConnected(chosen)) {
-    clearPaint();
-    notify("A bed has to be one connected piece. Paint it again.");
+    clearMarks();
+    notify("A bed has to be one connected piece.");
     return;
   }
   const id = state.nextId++;
@@ -720,7 +658,7 @@ function submit() {
   state.plots.push({ id, crop, life, max: life, cells: chosen, reward });
   for (const ci of chosen) state.cells[ci] = id;
   state.flash = { cells: chosen, life: 520 };
-  clearPaint();
+  clearMarks();
   state.plantedThisRound += 1;
   spawnRequest();
 }
@@ -847,15 +785,22 @@ function draw() {
     }
   }
   for (const plot of state.plots) drawPlot(plot);
-  if (state.flash) drawRegion(state.flash.cells, "rgba(255, 250, 235, 0.95)", 4);
-  ctx.drawImage(mask, 0, 0);
-  const underPointer = pointer && state.mode !== "place" ? plotAt(cellAt(pointer.x, pointer.y)) : null;
-  if (pointer && state.mode === "play" && !underPointer) {
-    const s = brushSide();
-    ctx.strokeStyle = "rgba(243, 238, 228, 0.9)";
-    ctx.lineWidth = 1.5;
-    ctx.strokeRect(pointer.x - s / 2, pointer.y - s / 2, s, s);
+  if (state.mode === "play") {
+    const hover = pointer ? cellAt(pointer.x, pointer.y) : -1;
+    for (const ci of markedCells()) {
+      const x = (ci % COLS) * CELL_W;
+      const y = ((ci / COLS) | 0) * CELL_H;
+      ctx.fillStyle = ci === hover ? "rgba(255, 236, 176, 0.95)" : "rgba(244, 209, 115, 0.82)";
+      ctx.fillRect(x + 3, y + 3, CELL_W - 6, CELL_H - 6);
+    }
+    if (hover >= 0 && state.dirt[hover] && !state.cells[hover] && !state.marks.has(hover)) {
+      const x = (hover % COLS) * CELL_W;
+      const y = ((hover / COLS) | 0) * CELL_H;
+      ctx.fillStyle = "rgba(244, 209, 115, 0.45)";
+      ctx.fillRect(x + 3, y + 3, CELL_W - 6, CELL_H - 6);
+    }
   }
+  if (state.flash) drawRegion(state.flash.cells, "rgba(255, 250, 235, 0.95)", 4);
 }
 
 function renderHud() {
@@ -863,11 +808,14 @@ function renderHud() {
   shopEl.hidden = state.mode !== "shop";
   placerEl.hidden = state.mode !== "place";
   playbarEl.hidden = state.mode !== "play";
+  startBtn.hidden = state.mode !== "shop";
+  requestEl.hidden = !playing;
   timerEl.hidden = !playing;
   unitLabel.hidden = !playing;
   unitEl.hidden = !playing;
+  coinsEl.textContent = String(state.coins);
   const underPointer = pointer && state.mode !== "place" ? plotAt(cellAt(pointer.x, pointer.y)) : null;
-  view.style.cursor = underPointer && underPointer.life <= 0 ? "pointer" : underPointer ? "default" : state.mode === "play" ? "none" : "crosshair";
+  view.style.cursor = state.mode === "place" ? "crosshair" : underPointer && underPointer.life <= 0 ? "pointer" : "default";
 
   if (playing) {
     sizeEl.textContent = String(state.request.size);
@@ -878,14 +826,11 @@ function renderHud() {
     const side = stage.clientWidth / COLS;
     unitEl.style.width = side + "px";
     unitEl.style.height = (stage.clientHeight / ROWS) + "px";
-  } else {
-    sizeEl.textContent = String(state.coins);
-    sizeLabel.textContent = "coins";
   }
 
   hullDetail.textContent = state.hull
     ? "Owned. An outline fills in the squares inside it."
-    : "Paint an outline. Squares inside it count as filled.";
+    : "Mark an outline. Squares inside it count as filled.";
   buyHullBtn.disabled = state.hull || state.coins < HULL_COST;
   buyHullBtn.textContent = state.hull ? "Owned" : HULL_COST + " coins";
   const nextDirt = dirtQuote(1);
@@ -912,11 +857,7 @@ function renderHud() {
     state.coins + " coins" +
     (state.best ? "<br>Best " + state.best : "");
   if (state.mode === "play") {
-    hintEl.textContent = strokePhase === "drawing"
-      ? "Click again to stop."
-      : strokePhase === "done"
-        ? "One stroke. Plant it, or clear it."
-        : "Click to paint, click to stop. Extra squares stay planted. Click harvest when it is ready.";
+    hintEl.textContent = "Hover a square to mark it. Extra squares stay planted. Click harvest when it is ready.";
   }
 }
 
@@ -931,27 +872,17 @@ function pointerPos(event) {
 view.addEventListener("pointerdown", (event) => {
   pointer = pointerPos(event);
   if (event.button === 2) {
-    if (state.mode === "play") clearPaint();
+    if (state.mode === "play") clearMarks();
     if (state.mode === "place") editSelection(cellAt(pointer.x, pointer.y), false);
     return;
   }
   if (event.button !== 0) return;
   const under = plotAt(cellAt(pointer.x, pointer.y));
-  if (under && state.mode !== "place" && !(state.mode === "play" && strokePhase === "drawing")) {
+  if (under && state.mode !== "place") {
     if (under.life <= 0) harvest(under);
     return;
   }
-  if (state.mode === "play") {
-    if (strokePhase === "idle") {
-      strokePhase = "drawing";
-      lastPoint = null;
-      strokeTo(pointer.x, pointer.y);
-    } else if (strokePhase === "drawing") {
-      strokeTo(pointer.x, pointer.y);
-      finishStroke();
-    }
-    return;
-  }
+  if (state.mode === "play") return;
   if (state.mode === "place") {
     view.setPointerCapture(event.pointerId);
     painting = true;
@@ -961,15 +892,9 @@ view.addEventListener("pointerdown", (event) => {
   }
 });
 
-window.addEventListener("pointermove", (event) => {
-  if (state.mode !== "play" || strokePhase !== "drawing") return;
-  pointer = pointerPos(event);
-  strokeTo(pointer.x, pointer.y);
-});
-
 view.addEventListener("pointermove", (event) => {
-  if (state.mode === "play" && strokePhase === "drawing") return;
   pointer = pointerPos(event);
+  if (state.mode === "play") markHover(cellAt(pointer.x, pointer.y));
   if (state.mode === "place" && painting) editSelection(cellAt(pointer.x, pointer.y), placeAdding);
 });
 
@@ -978,16 +903,14 @@ view.addEventListener("pointerup", () => {
 });
 
 view.addEventListener("pointerleave", () => {
-  if (strokePhase !== "drawing" && !painting) pointer = null;
+  pointer = null;
+  lastMark = -1;
 });
 
 view.addEventListener("contextmenu", (event) => event.preventDefault());
 
-document.getElementById("plant").addEventListener("click", () => {
-  finishStroke();
-  submit();
-});
-document.getElementById("clear").addEventListener("click", clearPaint);
+document.getElementById("plant").addEventListener("click", submit);
+document.getElementById("clear").addEventListener("click", clearMarks);
 buyHullBtn.addEventListener("click", buyHull);
 addDirtBtn.addEventListener("click", beginPlacement);
 startBtn.addEventListener("click", startRound);
@@ -996,17 +919,22 @@ document.getElementById("clear-dirt").addEventListener("click", () => state.sele
 document.getElementById("cancel-dirt").addEventListener("click", cancelPlacement);
 
 window.addEventListener("keydown", (event) => {
-  if (event.key === "Enter" && !event.target.closest("a, button")) {
+  if (event.key === "Enter") {
+    if (state.mode === "play") {
+      event.preventDefault();
+      submit();
+      return;
+    }
+    if (event.target.closest("a, button")) return;
     event.preventDefault();
     if (state.mode === "shop") startRound();
-    else if (state.mode === "play") submit();
     else if (state.mode === "place") confirmPlacement();
   }
   if (event.key === "Escape") {
-    if (state.mode === "play") clearPaint();
+    if (state.mode === "play") clearMarks();
     if (state.mode === "place") cancelPlacement();
   }
-  if (event.key === "Backspace" && state.mode === "play") clearPaint();
+  if (event.key === "Backspace" && state.mode === "play") clearMarks();
 });
 
 stage.addEventListener("animationend", () => stage.classList.remove("shake"));
