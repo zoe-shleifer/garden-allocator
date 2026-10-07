@@ -81,7 +81,7 @@
   #stage {
     position: relative;
     width: 100%;
-    aspect-ratio: 12 / 8;
+    aspect-ratio: 16 / 8;
     border-radius: 18px;
     overflow: hidden;
     background: #121814;
@@ -185,21 +185,14 @@
   </header>
   <div id="board">
   <div id="stage">
-    <canvas id="garden" width="960" height="640"></canvas>
+    <canvas id="garden" width="1280" height="640"></canvas>
     <div id="toast" hidden></div>
   </div>
   <div id="side">
   <section id="shop" class="panel">
     <p class="kicker">Shop</p>
     <h2>Buy, then plant until you miss.</h2>
-    <p>A round keeps going until the size is wrong or the timer runs out. Coins equal the size you plant. Click a plant to harvest it.</p>
-    <div class="shop-row">
-      <div>
-        <strong>Bigger brush</strong>
-        <span id="brush-detail"></span>
-      </div>
-      <button id="buy-brush" type="button">3 coins</button>
-    </div>
+    <p>A round keeps going until a bed is too small or the timer runs out. Paint at least the size asked. Harvest before the round ends. When it ends, the plants are gone.</p>
     <div class="shop-row">
       <div>
         <strong>Hull</strong>
@@ -234,25 +227,23 @@
   <div id="playbar" hidden>
     <button id="plant" type="button">Plant</button>
     <button id="clear" class="ghost" type="button">Clear</button>
-    <p id="hint">Click to paint, click to stop. Click a plant to harvest.</p>
-    <span id="version">v0.3.0</span>
+    <p id="hint">Click to paint, click to stop. Extra squares stay planted. Click harvest when it is ready.</p>
+    <span id="version">v0.4.0</span>
   </div>
   </div>
   </div>
 </div>
 <script>
-const VERSION = "0.3.0";
-const COLS = 12;
+const VERSION = "0.4.0";
+const COLS = 16;
 const ROWS = 8;
-const W = 960;
+const W = 1280;
 const H = 640;
 const CELL_W = W / COLS;
 const CELL_H = H / ROWS;
 const CELL_AREA = CELL_W * CELL_H;
-const BRUSH_NAMES = ["1/8", "1/4", "1/2", "1"];
-const BRUSH_MAX = BRUSH_NAMES.length - 1;
-const START_W = 4;
-const START_H = 4;
+const START_W = 16;
+const START_H = 1;
 
 const CROPS = [
   { name: "tomato", leaf: "#2f7a3e", fruit: "#e24b3a", bed: "#8a6248" },
@@ -287,8 +278,6 @@ const shopEl = document.getElementById("shop");
 const placerEl = document.getElementById("placer");
 const playbarEl = document.getElementById("playbar");
 const noteEl = document.getElementById("note");
-const brushDetail = document.getElementById("brush-detail");
-const buyBrushBtn = document.getElementById("buy-brush");
 const buyHullBtn = document.getElementById("buy-hull");
 const hullDetail = document.getElementById("hull-detail");
 const HULL_COST = 25;
@@ -306,7 +295,6 @@ const state = {
   round: 0,
   plantedThisRound: 0,
   coins: 0,
-  brushLevel: 0,
   hull: false,
   dirtBought: 0,
   dirt: new Uint8Array(COLS * ROWS),
@@ -404,12 +392,7 @@ function openDirtCount() {
 }
 
 function brushSide() {
-  return (CELL_W / 8) * 2 ** state.brushLevel;
-}
-
-function brushCost() {
-  if (state.brushLevel >= BRUSH_MAX) return null;
-  return 3 * 2 ** state.brushLevel;
+  return CELL_W;
 }
 
 function dirtQuote(n) {
@@ -582,7 +565,9 @@ function rollSize(room) {
   const drift = n * 0.45;
   const base = 1 + Math.floor(Math.random() * 3);
   const wobble = Math.round((Math.random() - 0.55) * (1 + n * 0.15));
-  return Math.max(1, Math.min(room, Math.round(base + drift + wobble)));
+  let size = Math.max(1, Math.round(base + drift + wobble));
+  if (Math.random() < 0.34) size = Math.max(size, room + 1 + Math.floor(Math.random() * 3));
+  return size;
 }
 
 function requestTime() {
@@ -629,6 +614,9 @@ function endRound(message) {
   state.mode = "shop";
   state.request = null;
   state.note = message;
+  state.plots = [];
+  state.cells.fill(0);
+  state.flash = null;
   clearPaint();
   stage.classList.add("shake");
 }
@@ -648,9 +636,12 @@ function plotAt(index) {
 }
 
 function harvest(plot) {
+  if (plot.life > 0) return;
   for (const ci of plot.cells) state.cells[ci] = 0;
   const at = state.plots.indexOf(plot);
   if (at >= 0) state.plots.splice(at, 1);
+  state.coins += plot.reward;
+  notify("+" + plot.reward + " coin" + (plot.reward === 1 ? "" : "s"));
 }
 
 function startRound() {
@@ -665,14 +656,6 @@ function startRound() {
   state.mode = "play";
   clearPaint();
   spawnRequest();
-}
-
-function buyBrush() {
-  if (state.mode !== "shop") return;
-  const cost = brushCost();
-  if (cost === null || state.coins < cost) return;
-  state.coins -= cost;
-  state.brushLevel += 1;
 }
 
 function buyHull() {
@@ -721,8 +704,8 @@ function submit() {
     if (measured.pixels > 0) endRound("Too small.");
     return;
   }
-  if (chosen.length !== state.request.size) {
-    endRound(chosen.length < state.request.size ? "Too small." : "Too big.");
+  if (chosen.length < state.request.size) {
+    endRound("Too small.");
     return;
   }
   if (!isConnected(chosen)) {
@@ -733,13 +716,12 @@ function submit() {
   const id = state.nextId++;
   const crop = CROPS[(id - 1) % CROPS.length];
   const life = cropLife();
-  state.plots.push({ id, crop, life, max: life, cells: chosen });
+  const reward = state.request.size;
+  state.plots.push({ id, crop, life, max: life, cells: chosen, reward });
   for (const ci of chosen) state.cells[ci] = id;
   state.flash = { cells: chosen, life: 520 };
   clearPaint();
   state.plantedThisRound += 1;
-  state.coins += state.request.size;
-  notify("+" + state.request.size + " coins");
   spawnRequest();
 }
 
@@ -803,12 +785,34 @@ function drawPlot(plot) {
     sx += x + CELL_W / 2;
     sy += y + CELL_H / 2;
   }
-  const seconds = Math.ceil(plot.life / 1000);
+  const cx = sx / plot.cells.length;
+  const cy = sy / plot.cells.length;
   ctx.fillStyle = "#8ee7a8";
-  ctx.font = "600 32px system-ui, sans-serif";
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  ctx.fillText(String(seconds), sx / plot.cells.length, sy / plot.cells.length);
+  const noun = plot.reward === 1 ? "coin" : "coins";
+  if (ready) {
+    ctx.font = "600 26px system-ui, sans-serif";
+    ctx.fillText("harvest", cx, cy);
+    return;
+  }
+  const seconds = Math.ceil(plot.life / 1000);
+  const line = seconds + " sec for " + plot.reward + " " + noun;
+  let minC = COLS;
+  let maxC = 0;
+  for (const ci of plot.cells) {
+    const c = ci % COLS;
+    if (c < minC) minC = c;
+    if (c > maxC) maxC = c;
+  }
+  ctx.font = "600 22px system-ui, sans-serif";
+  if (ctx.measureText(line).width <= (maxC - minC + 1) * CELL_W - 8) {
+    ctx.fillText(line, cx, cy);
+    return;
+  }
+  ctx.font = "600 18px system-ui, sans-serif";
+  ctx.fillText(seconds + " sec for", cx, cy - 12);
+  ctx.fillText(plot.reward + " " + noun, cx, cy + 12);
 }
 
 function draw() {
@@ -845,8 +849,8 @@ function draw() {
   for (const plot of state.plots) drawPlot(plot);
   if (state.flash) drawRegion(state.flash.cells, "rgba(255, 250, 235, 0.95)", 4);
   ctx.drawImage(mask, 0, 0);
-  const hoveringCrop = pointer && state.mode !== "place" && plotAt(cellAt(pointer.x, pointer.y));
-  if (pointer && state.mode === "play" && !hoveringCrop) {
+  const underPointer = pointer && state.mode !== "place" ? plotAt(cellAt(pointer.x, pointer.y)) : null;
+  if (pointer && state.mode === "play" && !underPointer) {
     const s = brushSide();
     ctx.strokeStyle = "rgba(243, 238, 228, 0.9)";
     ctx.lineWidth = 1.5;
@@ -862,8 +866,8 @@ function renderHud() {
   timerEl.hidden = !playing;
   unitLabel.hidden = !playing;
   unitEl.hidden = !playing;
-  const hoveringCrop = pointer && state.mode !== "place" && plotAt(cellAt(pointer.x, pointer.y));
-  view.style.cursor = hoveringCrop ? "pointer" : state.mode === "play" ? "none" : "crosshair";
+  const underPointer = pointer && state.mode !== "place" ? plotAt(cellAt(pointer.x, pointer.y)) : null;
+  view.style.cursor = underPointer && underPointer.life <= 0 ? "pointer" : underPointer ? "default" : state.mode === "play" ? "none" : "crosshair";
 
   if (playing) {
     sizeEl.textContent = String(state.request.size);
@@ -879,14 +883,6 @@ function renderHud() {
     sizeLabel.textContent = "coins";
   }
 
-  const nextBrush = brushCost();
-  const now = BRUSH_NAMES[state.brushLevel];
-  const nextName = state.brushLevel < BRUSH_MAX ? BRUSH_NAMES[state.brushLevel + 1] : null;
-  brushDetail.textContent = nextName
-    ? "Now " + now + " × " + now + " of a unit. Next is " + nextName + " × " + nextName + "."
-    : "The brush covers a full unit.";
-  buyBrushBtn.disabled = nextBrush === null || state.coins < nextBrush;
-  buyBrushBtn.textContent = nextBrush === null ? "Full size" : nextBrush + " coins";
   hullDetail.textContent = state.hull
     ? "Owned. An outline fills in the squares inside it."
     : "Paint an outline. Squares inside it count as filled.";
@@ -912,7 +908,7 @@ function renderHud() {
 
   metaEl.innerHTML =
     "<strong>" + (state.round ? "Round " + state.round : "Shop") + "</strong><br>" +
-    "Brush " + now + " × " + now + (state.hull ? " · Hull" : "") + "<br>" +
+    (state.hull ? "Hull<br>" : "") +
     state.coins + " coins" +
     (state.best ? "<br>Best " + state.best : "");
   if (state.mode === "play") {
@@ -920,7 +916,7 @@ function renderHud() {
       ? "Click again to stop."
       : strokePhase === "done"
         ? "One stroke. Plant it, or clear it."
-        : "Click to paint, click to stop. Click a plant to harvest.";
+        : "Click to paint, click to stop. Extra squares stay planted. Click harvest when it is ready.";
   }
 }
 
@@ -942,7 +938,7 @@ view.addEventListener("pointerdown", (event) => {
   if (event.button !== 0) return;
   const under = plotAt(cellAt(pointer.x, pointer.y));
   if (under && state.mode !== "place" && !(state.mode === "play" && strokePhase === "drawing")) {
-    harvest(under);
+    if (under.life <= 0) harvest(under);
     return;
   }
   if (state.mode === "play") {
@@ -992,7 +988,6 @@ document.getElementById("plant").addEventListener("click", () => {
   submit();
 });
 document.getElementById("clear").addEventListener("click", clearPaint);
-buyBrushBtn.addEventListener("click", buyBrush);
 buyHullBtn.addEventListener("click", buyHull);
 addDirtBtn.addEventListener("click", beginPlacement);
 startBtn.addEventListener("click", startRound);
